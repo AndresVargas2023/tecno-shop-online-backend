@@ -14,8 +14,8 @@ connectDB();
 
 // Middlewares
 app.use(cors({
-  origin: 'https://tecnoshoponline.netlify.app', // Tu frontend en Netlify
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'], // Métodos permitidos
+  origin: '*',
+   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'], // Métodos permitidos
   credentials: true // Si necesitas enviar cookies o headers de autenticación
 }));
 app.use(express.json());
