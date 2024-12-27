@@ -1,14 +1,46 @@
 const express = require('express');
 const router = express.Router();
-const { login, register, getUsers } = require('../controllers/authController');
+const { 
+    register, 
+    verifyEmail, 
+    login, 
+    getUsers, 
+    deleteUser, 
+    editUser, 
+    getUserById,
+    requestPasswordReset,  // Nueva función
+    resetPassword,         // Nueva función
+    verifyPasswordResetCode // Nueva función para verificar código de recuperación
+} = require('../controllers/authController');
 
-// Ruta para el registro
+// Registrar usuario
 router.post('/register', register);
 
-// Ruta para el inicio de sesión
+// Verificar correo electrónico
+router.post('/verify', verifyEmail);
+
+// Iniciar sesión
 router.post('/login', login);
 
-// Ruta para obtener todos los usuarios
+// Ruta para solicitar recuperación de contraseña
+router.post('/request-password-reset', requestPasswordReset);
+
+// Ruta para verificar el código de recuperación de contraseña
+router.post('/verify-password-reset-code', verifyPasswordResetCode);
+
+// Ruta para restablecer la contraseña
+router.post('/reset-password', resetPassword);
+
+// Obtener usuarios
 router.get('/users', getUsers);
+
+// Obtener usuario por ID
+router.get('/users/:userId', getUserById);
+
+// Eliminar usuario por Id
+router.delete('/users/:userId', deleteUser);
+
+// Editar usuario
+router.put('/users/:userId', editUser);
 
 module.exports = router;

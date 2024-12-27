@@ -32,6 +32,7 @@ app.use(
 );
 
 // Rutas
+
 app.use('/api/auth', authRoutes); // Asegúrate de que esta ruta esté configurada correctamente
 app.use('/api/products', products); // Rutas de productos
 
