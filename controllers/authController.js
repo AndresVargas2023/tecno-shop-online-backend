@@ -107,6 +107,8 @@ exports.login = async (req, res) => {
       message: 'Inicio de sesión exitoso',
       token,
       role: user.role,  // Enviar el rol como parte de la respuesta
+      name: user.name,
+      surname: user.surname,
     });
   } catch (error) {
     console.error(error);
@@ -223,7 +225,7 @@ exports.requestPasswordReset = async (req, res) => {
     await user.save();
 
     // Enviar el token por correo
-    const resetURL = `http://localhost:3000/reset-password/${resetToken}`;
+    const resetURL = `https://tecnoshoponline.netlify.app/forgot-password/${resetToken}`;
     
     // Aquí es donde el código de verificación se pasa al correo
     await sendVerificationEmail(

@@ -10,10 +10,10 @@ const sendVerificationEmail = async (email, code, isPasswordReset = false) => {
     },
   });
 
-  const subject = isPasswordReset ? 'Recuperación de contraseña' : 'Código de verificación';
+  const subject = isPasswordReset ? 'Recuperación de contraseña' : 'Verificación de cuenta';
   const text = isPasswordReset 
-    ? `Tu código de verificación para restablecer tu contraseña es: ${code}` 
-    : `Tu código de verificación es: ${code}`;
+    ? `Tu código de verificación para restablecer tu contraseña es: ${code}. Por favor, ingresa este código en el siguiente enlace para continuar: https://tecnoshoponline.netlify.app/forgot-password`
+    : `Tu código de verificación es: ${code}. Completa tu registro en el siguiente enlace: https://tecnoshoponline.netlify.app/register`;
 
   const mailOptions = {
     from: process.env.EMAIL_USER,   // Correo de Gmail
