@@ -3,22 +3,7 @@ const sendVerificationEmail = require('../utils/emailService'); // Importar la f
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-exports.updateUserPassword = async (req, res) => {
-  const { id } = req.params;
-  const { newPassword } = req.body;
 
-  if (!newPassword) {
-    return res.status(400).json({ message: 'La contraseña es obligatoria.' });
-  }
-
-  try {
-    const hashedPassword = await bcrypt.hash(newPassword, 10); // Encriptar la contraseña
-    await User.findByIdAndUpdate(id, { password: hashedPassword });
-    res.status(200).json({ message: 'Contraseña actualizada correctamente.' });
-  } catch (error) {
-    res.status(500).json({ message: 'Error al actualizar la contraseña.' });
-  }
-};
 // Registro de usuario con código de verificación
 exports.register = async (req, res) => {
   try {

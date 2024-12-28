@@ -10,7 +10,8 @@ const {
     getUserById,
     requestPasswordReset,  // Nueva función
     resetPassword,         // Nueva función
-    verifyPasswordResetCode // Nueva función para verificar código de recuperación
+    verifyPasswordResetCode, // Nueva función para verificar código de recuperación
+    updateUserPassword
 } = require('../controllers/authController');
 
 // Registrar usuario
@@ -42,5 +43,8 @@ router.delete('/users/:userId', deleteUser);
 
 // Editar usuario
 router.put('/users/:userId', editUser);
+
+// Actualizar la contraseña de un usuario por su ID
+router.patch('/users/:id/password', updateUserPassword);
 
 module.exports = router;
