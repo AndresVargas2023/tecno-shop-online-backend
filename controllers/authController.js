@@ -7,9 +7,10 @@ const crypto = require('crypto');
 // Registro de usuario con código de verificación
 exports.register = async (req, res) => {
   try {
-    const { name, surname, email, password } = req.body;
+    const { name, surname, email, password, address } = req.body;
 
-    if (!name || !surname || !email || !password) {
+    // Validación de campos obligatorios
+    if (!name || !surname || !email || !password || !address) {
       return res.status(400).json({ message: 'Faltan campos obligatorios' });
     }
 
@@ -34,7 +35,7 @@ exports.register = async (req, res) => {
       verificationCode,
       isVerified: false, // Inicialmente no está verificado
       role: 'user', // Asignamos el rol por defecto como 'user'
-      address: '', // Dirección opcional
+      address, // Usamos la dirección recibida
     });
 
     await newUser.save();
@@ -48,6 +49,7 @@ exports.register = async (req, res) => {
     res.status(500).json({ error: 'Error al registrar usuario.' });
   }
 };
+
 
 // Confirmación de la cuenta con código de verificación
 exports.verifyEmail = async (req, res) => {

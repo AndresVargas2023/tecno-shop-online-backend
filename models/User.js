@@ -23,24 +23,23 @@ const userSchema = new mongoose.Schema({
   },
   isVerified: {
     type: Boolean,
-    default: false, // Por defecto no está verificado
+    default: false, 
   },
   role: {
     type: String,
-    enum: ['user', 'admin', 'moderator'], // Solo permite estos tres roles
-    default: 'user', // Valor predeterminado es 'user'
+    enum: ['user', 'admin', 'moderator'],
+    default: 'user', 
   },
   address: {
     type: String,
-    default: '', // Valor por defecto vacío, puede ser opcional
+    required: true, 
   },
-  // Campos para la recuperación de la contraseña
   resetPasswordToken: {
-    type: String, // Token único generado para la recuperación
+    type: String,
     default: null,
   },
   resetPasswordExpires: {
-    type: Date, // Fecha de expiración del token
+    type: Date, 
     default: null,
   },
 });
