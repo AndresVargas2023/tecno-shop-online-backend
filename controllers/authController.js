@@ -40,8 +40,8 @@ exports.register = async (req, res) => {
 
     await newUser.save();
 
-    // Enviar el correo de verificación
-    await sendVerificationEmail(email, verificationCode);
+    // Enviar el correo de verificación, pasando también el nombre y apellido
+    await sendVerificationEmail(email, verificationCode, name, surname);
 
     res.status(201).json({ message: 'Usuario registrado. Por favor verifica tu correo.' });
   } catch (error) {
@@ -229,10 +229,12 @@ exports.requestPasswordReset = async (req, res) => {
     // Enviar el token por correo
     const resetURL = `https://tecnoshoponline.netlify.app/forgot-password/${resetToken}`;
     
-    // Aquí es donde el código de verificación se pasa al correo
+    // Enviar el correo de recuperación con el nombre del usuario
     await sendVerificationEmail(
       email,
       resetToken,
+      user.name,  // Nombre del usuario
+      user.surname, // Apellido del usuario
       true  // Indicamos que es para recuperación de contraseña
     );
 
@@ -242,6 +244,7 @@ exports.requestPasswordReset = async (req, res) => {
     res.status(500).json({ message: 'Error al solicitar recuperación de contraseña' });
   }
 };
+
 
 // En tu archivo de controlador (authController.js)
 exports.verifyPasswordResetCode = async (req, res) => {
