@@ -96,7 +96,6 @@ exports.verifyEmail = async (req, res) => {
   }
 };
 
-// Inicio de sesión
 exports.login = async (req, res) => {
   const { email, password } = req.body;
 
@@ -113,17 +112,18 @@ exports.login = async (req, res) => {
       return res.status(400).json({ message: 'Correo o contraseña incorrectos' });
     }
 
-    // Generar el token, incluyendo el rol del usuario
+    // Generar el token, incluyendo el rol y el ID del usuario
     const token = jwt.sign(
-      { userId: user._id, name: user.name, surname: user.surname, role: user.role },  // Incluye el rol
+      { userId: user._id, name: user.name, surname: user.surname, role: user.role },  // Incluye el rol y userId
       'secretKey', { expiresIn: '1h' }
     );
 
-    // Responder con el token y el rol
+    // Responder con el token, el rol, el userId y el nombre del usuario
     res.json({
       message: 'Inicio de sesión exitoso',
       token,
       role: user.role,  // Enviar el rol como parte de la respuesta
+      userId: user._id,  // Enviar el userId como parte de la respuesta
       name: user.name,
       surname: user.surname,
     });
@@ -132,6 +132,7 @@ exports.login = async (req, res) => {
     res.status(500).json({ message: 'Error en el servidor' });
   }
 };
+
 
 // Obtener todos los usuarios
 exports.getUsers = async (req, res) => {
