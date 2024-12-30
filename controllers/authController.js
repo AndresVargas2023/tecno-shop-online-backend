@@ -233,13 +233,18 @@ exports.requestPasswordReset = async (req, res) => {
       return res.status(404).json({ message: 'Usuario no encontrado' });
     }
 
-    // Generar un token JWT único para la recuperación de contraseña
+    // Generar el token de restablecimiento de contraseña
     const resetToken = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
-    // Enviar el correo con el enlace de recuperación de contraseña
+    // Guardar el token y la fecha de expiración en el modelo User
+    user.resetPasswordToken = resetToken;
+    user.resetPasswordExpires = Date.now() + 3600000; // Expiración en 1 hora
+    await user.save();
+
+    // Enviar el correo con el enlace para restablecer la contraseña
     await sendVerificationEmail(
       email,
-      resetToken,  // Pasar el token de recuperación al enlace
+      resetToken,  // Pasa el token al enlace de restablecimiento
       user.name,
       user.surname,
       true  // Indicar que es para recuperación de contraseña
@@ -252,41 +257,22 @@ exports.requestPasswordReset = async (req, res) => {
   }
 };
 
-
-// Verificar el token del enlace y permitir que el usuario ingrese una nueva contraseña
-exports.verifyLink = async (req, res) => {
-  const { token } = req.params;
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.userId);
-
-    if (!user) {
-      return res.status(404).json({ message: "Usuario no encontrado" });
-    }
-
-    res.status(200).json({ message: "Token verificado. Puedes cambiar tu contraseña." });
-  } catch (error) {
-    console.error("Error al verificar el token:", error.message);
-    res.status(400).json({
-      message: error.name === "TokenExpiredError" 
-        ? "Token expirado. Solicita uno nuevo." 
-        : "Token inválido.",
-    });
-  }
-};
-
 // Restablecer la contraseña y permitir inicio de sesión automático
 exports.resetPassword = async (req, res) => {
   const { token, newPassword } = req.body;
 
   try {
-    // Verifica el token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET); 
-    const user = await User.findById(decoded.userId); // Busca al usuario por el ID
+    // Encontrar al usuario con el token de restablecimiento
+    const user = await User.findOne({ resetPasswordToken: token, resetPasswordExpires: { $gt: Date.now() } });
 
     if (!user) {
-      return res.status(404).json({ message: 'Usuario no encontrado' });
+      return res.status(400).json({ message: 'Token inválido o expirado.' });
+    }
+
+    // Verificar el token de forma adicional (opcional, dependiendo del flujo)
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (decoded.userId !== user._id.toString()) {
+      return res.status(400).json({ message: 'Token no válido para este usuario.' });
     }
 
     // Encriptar la nueva contraseña
@@ -295,9 +281,15 @@ exports.resetPassword = async (req, res) => {
 
     // Actualizar la contraseña del usuario
     user.password = hashedPassword;
+
+    // Limpiar el token de restablecimiento y la fecha de expiración
+    user.resetPasswordToken = null;
+    user.resetPasswordExpires = null;
+
+    // Guardar el usuario con la nueva contraseña y token de restablecimiento limpiado
     await user.save();
 
-    // Generar un token para iniciar sesión automáticamente
+    // Generar un token JWT para iniciar sesión automáticamente
     const newToken = jwt.sign(
       { id: user._id, role: user.role, name: user.name, surname: user.surname },
       process.env.JWT_SECRET,
@@ -313,12 +305,12 @@ exports.resetPassword = async (req, res) => {
       surname: user.surname,
       userId: user._id, // Incluir el ID del usuario
     });
-
   } catch (error) {
     console.error('Error al restablecer la contraseña:', error);
     res.status(500).json({ message: 'Hubo un error al restablecer la contraseña' });
   }
 };
+
 
 
 // Verificación de usuario con enlace
