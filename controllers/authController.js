@@ -257,6 +257,29 @@ exports.requestPasswordReset = async (req, res) => {
   }
 };
 
+
+// Verificar el token del enlace y permitir que el usuario ingrese una nueva contraseña
+exports.verifyLink = async (req, res) => {
+  const { token } = req.params;
+
+  try {
+    // Buscar al usuario con el token de recuperación de contraseña
+    const user = await User.findOne({ resetPasswordToken: token, resetPasswordExpires: { $gt: Date.now() } });
+    
+
+    if (!user) {
+      return res.status(400).json({ message: "Token inválido o ha expirado." });
+    }
+
+    // Si el token es válido, responder con un mensaje
+    res.status(200).json({ message: "Token verificado. Puedes cambiar tu contraseña." });
+  } catch (error) {
+    console.error("Error al verificar el token:", error.message);
+    res.status(500).json({ message: "Error al verificar el token." });
+  }
+};
+
+
 // Restablecer la contraseña y permitir inicio de sesión automático
 exports.resetPassword = async (req, res) => {
   const { token, newPassword } = req.body;

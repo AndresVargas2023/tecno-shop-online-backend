@@ -11,6 +11,7 @@ const {
     requestPasswordReset,  // Nueva función
     resetPassword,         // Nueva función
     updateUserPassword,
+    verifyLink,  // Nueva ruta para verificar el enlace para recuperar contraseña
     verifyUserByLink
 } = require('../controllers/authController');
 
@@ -27,8 +28,10 @@ router.post('/login', login);
 router.post('/request-password-reset', requestPasswordReset);
 
 // Ruta para verificar el enlace de recuperación de contraseña
+router.get('/verify-link/:token', verifyLink);  // Cambié a GET para coincidir con la ruta de verificación del token
 
 router.post('/verify-link', verifyUserByLink);
+
 
 // Ruta para restablecer la contraseña
 router.post('/reset-password', resetPassword);
