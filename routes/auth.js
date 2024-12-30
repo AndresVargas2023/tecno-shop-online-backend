@@ -10,8 +10,9 @@ const {
     getUserById,
     requestPasswordReset,  // Nueva función
     resetPassword,         // Nueva función
-    verifyPasswordResetCode, // Nueva función para verificar código de recuperación
-    updateUserPassword
+    updateUserPassword,
+    verifyLink,  // Nueva ruta para verificar el enlace para recuperar contraseña
+    verifyUserByLink
 } = require('../controllers/authController');
 
 // Registrar usuario
@@ -26,8 +27,11 @@ router.post('/login', login);
 // Ruta para solicitar recuperación de contraseña
 router.post('/request-password-reset', requestPasswordReset);
 
-// Ruta para verificar el código de recuperación de contraseña
-router.post('/verify-password-reset-code', verifyPasswordResetCode);
+// Ruta para verificar el enlace de recuperación de contraseña
+router.get('/verify-link/:token', verifyLink);  // Cambié a GET para coincidir con la ruta de verificación del token
+
+router.post('/verify-link', verifyUserByLink);
+
 
 // Ruta para restablecer la contraseña
 router.post('/reset-password', resetPassword);

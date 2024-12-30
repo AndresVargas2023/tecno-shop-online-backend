@@ -3,6 +3,7 @@ const sendVerificationEmail = require('../utils/emailService'); // Importar la f
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+
 exports.updateUserPassword = async (req, res) => {
   const { id } = req.params;
   const { newPassword } = req.body;
@@ -226,35 +227,25 @@ exports.requestPasswordReset = async (req, res) => {
   const { email } = req.body;
 
   try {
-    // Verificar si el usuario existe
     const user = await User.findOne({ email });
+
     if (!user) {
       return res.status(404).json({ message: 'Usuario no encontrado' });
     }
 
-    // Generar un token único (código de verificación)
-    const resetToken = Math.floor(100000 + Math.random() * 900000); // Genera un número aleatorio de 6 dígitos
+    // Generar un token JWT único para la recuperación de contraseña
+    const resetToken = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
-    const tokenExpiration = Date.now() + 3600000; // 1 hora de validez
-
-    // Guardar el token y su expiración en el usuario
-    user.resetPasswordToken = resetToken;
-    user.resetPasswordExpires = tokenExpiration;
-    await user.save();
-
-    // Enviar el token por correo
-    const resetURL = `https://tecnoshoponline.netlify.app/forgot-password/${resetToken}`;
-    
-    // Enviar el correo de recuperación con el nombre del usuario
+    // Enviar el correo con el enlace de recuperación de contraseña
     await sendVerificationEmail(
       email,
-      resetToken,
-      user.name,  // Nombre del usuario
-      user.surname, // Apellido del usuario
-      true  // Indicamos que es para recuperación de contraseña
+      resetToken,  // Pasar el token de recuperación al enlace
+      user.name,
+      user.surname,
+      true  // Indicar que es para recuperación de contraseña
     );
 
-    res.status(200).json({ message: 'Correo de recuperación enviado' });
+    res.status(200).json({ message: 'Correo de recuperación enviado con el enlace' });
   } catch (error) {
     console.error('Error al solicitar recuperación de contraseña:', error);
     res.status(500).json({ message: 'Error al solicitar recuperación de contraseña' });
@@ -262,9 +253,77 @@ exports.requestPasswordReset = async (req, res) => {
 };
 
 
-// En tu archivo de controlador (authController.js)
-exports.verifyPasswordResetCode = async (req, res) => {
-  const { email, code } = req.body;
+// Verificar el token del enlace y permitir que el usuario ingrese una nueva contraseña
+exports.verifyLink = async (req, res) => {
+  const { token } = req.params;
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.userId);
+
+    if (!user) {
+      return res.status(404).json({ message: "Usuario no encontrado" });
+    }
+
+    res.status(200).json({ message: "Token verificado. Puedes cambiar tu contraseña." });
+  } catch (error) {
+    console.error("Error al verificar el token:", error.message);
+    res.status(400).json({
+      message: error.name === "TokenExpiredError" 
+        ? "Token expirado. Solicita uno nuevo." 
+        : "Token inválido.",
+    });
+  }
+};
+
+// Restablecer la contraseña y permitir inicio de sesión automático
+exports.resetPassword = async (req, res) => {
+  const { token, newPassword } = req.body;
+
+  try {
+    // Verifica el token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET); 
+    const user = await User.findById(decoded.userId); // Busca al usuario por el ID
+
+    if (!user) {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
+
+    // Encriptar la nueva contraseña
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    // Actualizar la contraseña del usuario
+    user.password = hashedPassword;
+    await user.save();
+
+    // Generar un token para iniciar sesión automáticamente
+    const newToken = jwt.sign(
+      { id: user._id, role: user.role, name: user.name, surname: user.surname },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' } // El token tiene una validez de 1 hora
+    );
+
+    // Responder con el nuevo token y un mensaje de éxito
+    res.status(200).json({
+      message: 'Contraseña restablecida exitosamente. Te has iniciado sesión automáticamente.',
+      token: newToken, // El token para iniciar sesión automáticamente
+      role: user.role,
+      name: user.name,
+      surname: user.surname,
+      userId: user._id, // Incluir el ID del usuario
+    });
+
+  } catch (error) {
+    console.error('Error al restablecer la contraseña:', error);
+    res.status(500).json({ message: 'Hubo un error al restablecer la contraseña' });
+  }
+};
+
+
+// Verificación de usuario con enlace
+exports.verifyUserByLink = async (req, res) => {
+  const { email } = req.body;
 
   try {
     const user = await User.findOne({ email });
@@ -273,44 +332,39 @@ exports.verifyPasswordResetCode = async (req, res) => {
       return res.status(404).json({ message: 'Usuario no encontrado' });
     }
 
-    if (user.resetPasswordToken !== code || user.resetPasswordExpires < Date.now()) {
-      return res.status(400).json({ message: 'Código inválido o expirado' });
+    // Verificar si el usuario ya está verificado
+    if (user.isVerified) {
+      // Si ya está verificado, no necesitamos hacer más, solo enviamos un mensaje
+      return res.status(200).json({
+        success: true,
+        message: 'Usuario ya verificado. Por favor, inicia sesión.',
+      });
     }
 
-    res.status(200).json({ message: 'Código verificado. Puedes restablecer tu contraseña.' });
+    // Si el usuario no está verificado, marcarlo como verificado
+    user.isVerified = true;
+    await user.save();
+
+    // Generar un token para iniciar sesión automáticamente
+    const token = jwt.sign(
+      { id: user._id, role: user.role, name: user.name, surname: user.surname },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }  // El token tiene una validez de 1 hora
+    );
+
+    // Devolver el token, el ID y la información del usuario para iniciar sesión automáticamente
+    res.status(200).json({
+      success: true,
+      message: 'Usuario verificado con éxito. Iniciando sesión automáticamente.',
+      token,
+      role: user.role,
+      name: user.name,
+      surname: user.surname,
+      userId: user._id // Agregar el ID del usuario
+    });
+
   } catch (error) {
-    console.error('Error al verificar el código:', error);
-    res.status(500).json({ message: 'Error al verificar el código' });
-  }
-};
-
-
-
-exports.resetPassword = async (req, res) => {
-  const { token, newPassword } = req.body; // El token se obtiene del cuerpo de la solicitud
-
-  try {
-    // Verificar si el token es válido
-    const user = await User.findOne({ resetPasswordToken: token });
-
-    if (!user || user.resetPasswordExpires < Date.now()) {
-      return res.status(400).json({ message: 'Código de recuperación inválido o expirado' });
-    }
-
-    // Encriptar la nueva contraseña
-    const salt = await bcrypt.genSalt(10);  // Generar un "salt"
-    const hashedPassword = await bcrypt.hash(newPassword, salt);  // Encriptar la nueva contraseña
-
-    // Actualizar la contraseña del usuario con la versión encriptada
-    user.password = hashedPassword;
-    user.resetPasswordToken = undefined;  // Limpiar el token de recuperación
-    user.resetPasswordExpires = undefined;  // Limpiar la expiración del token
-
-    await user.save();  // Guardar la nueva contraseña en la base de datos
-
-    res.status(200).json({ message: 'Contraseña restablecida exitosamente' });
-  } catch (error) {
-    console.error('Error al restablecer la contraseña:', error);
-    res.status(500).json({ message: 'Hubo un error al restablecer la contraseña' });
+    console.error('Error al verificar el usuario:', error);
+    res.status(500).json({ message: 'Error al verificar el usuario' });
   }
 };
