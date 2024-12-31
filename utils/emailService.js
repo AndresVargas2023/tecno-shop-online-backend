@@ -3,7 +3,7 @@ const nodemailer = require('nodemailer');
 const sendVerificationEmail = async (email, codeOrToken, name, surname, isPasswordReset = false) => {
   // Configuración del transporte de correo
   const transporter = nodemailer.createTransport({
-    service: 'gmail', // Puedes usar otro servicio como SendGrid, Mailgun, etc.
+    service: 'gmail', // Se puede usar otro servicio como SendGrid, Mailgun, etc.
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS,
