@@ -3,9 +3,11 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet'); // Importa Helmet
-const connectDB = require('./config/db'); // Verifica que la ruta sea correcta
+const connectDB = require('./config/db'); 
 const authRoutes = require('./routes/auth');
-const products = require('./routes/products'); // Asegúrate de que la ruta sea correcta
+const products = require('./routes/products');
+const purchaseRoutes = require('./routes/purchaseRoutes');
+
 
 const app = express();
 
@@ -35,6 +37,8 @@ app.use(
 
 app.use('/api/auth', authRoutes); // Asegúrate de que esta ruta esté configurada correctamente
 app.use('/api/products', products); // Rutas de productos
+app.use('/api/purchases', purchaseRoutes);// Rutas para las compras
+
 
 // Puerto del servidor
 const PORT = process.env.PORT || 5000;
