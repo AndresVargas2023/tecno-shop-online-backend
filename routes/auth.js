@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const { 
     register, 
-    verifyEmail, 
     login, 
     getUsers, 
     deleteUser, 
@@ -17,9 +16,6 @@ const {
 
 // Registrar usuario
 router.post('/register', register);
-
-// Verificar correo electrónico
-router.post('/verify', verifyEmail);
 
 // Iniciar sesión
 router.post('/login', login);

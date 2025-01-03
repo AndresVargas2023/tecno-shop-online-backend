@@ -4,72 +4,53 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 
-exports.updateUserPassword = async (req, res) => {
-  const { id } = req.params;
-  const { newPassword } = req.body;
-
-  if (!newPassword) {
-    return res.status(400).json({ message: 'La contraseña es obligatoria.' });
-  }
-
-  try {
-    const hashedPassword = await bcrypt.hash(newPassword, 10); // Encriptar la contraseña
-    await User.findByIdAndUpdate(id, { password: hashedPassword });
-    res.status(200).json({ message: 'Contraseña actualizada correctamente.' });
-  } catch (error) {
-    res.status(500).json({ message: 'Error al actualizar la contraseña.' });
-  }
-};
 // Registro de usuario con código de verificación
 exports.register = async (req, res) => {
   try {
-    const { name, surname, email, password, address } = req.body;
-
-    // Validación de campos obligatorios
-    if (!name || !surname || !email || !password || !address) {
-      return res.status(400).json({ message: 'Faltan campos obligatorios' });
-    }
-
-    // Validación del formato de correo electrónico
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return res.status(400).json({ message: 'El correo electrónico no es válido' });
-    }
-
-    // Generar código de verificación (numérico de 6 dígitos)
-    const verificationCode = Math.floor(100000 + Math.random() * 900000); // Código de 6 dígitos
-
-    // Encriptar la contraseña
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const { name, surname, email, password, dpt, city, barrio, phoneNumber } = req.body;
 
     // Crear y guardar el usuario
     const newUser = new User({
       name,
       surname,
       email,
-      password: hashedPassword,
-      verificationCode,
-      isVerified: false, // Inicialmente no está verificado
-      role: 'user', // Asignamos el rol por defecto como 'user'
-      address, // Usamos la dirección recibida
+      password,
+      dpt,
+      city,
+      barrio,
+      phoneNumber,
     });
 
     await newUser.save();
 
-    // Enviar el correo de verificación, pasando también el nombre y apellido
-    await sendVerificationEmail(email, verificationCode, name, surname);
+    // Enviar el correo de verificación
+    await sendVerificationEmail(email, name, surname);
 
     res.status(201).json({ message: 'Usuario registrado. Por favor verifica tu correo.' });
   } catch (error) {
     console.error('Error al registrar usuario:', error);
+
+    // Manejo de error de clave duplicada (correo duplicado)
+    if (error.code === 11000) {
+      return res.status(400).json({
+        message: 'El correo electrónico ya está registrado. Por favor, utiliza otro.',
+      });
+    }
+
+    // Si es otro tipo de error, enviar un error genérico
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ message: error.message, errors: error.errors });
+    }
+
     res.status(500).json({ error: 'Error al registrar usuario.' });
   }
 };
 
 
-// Confirmación de la cuenta con código de verificación
-exports.verifyEmail = async (req, res) => {
-  const { email, code } = req.body;
+
+// Verificación de usuario con enlace
+exports.verifyUserByLink = async (req, res) => {
+  const { email } = req.body;
 
   try {
     const user = await User.findOne({ email });
@@ -78,25 +59,48 @@ exports.verifyEmail = async (req, res) => {
       return res.status(404).json({ message: 'Usuario no encontrado' });
     }
 
-    if (user.verificationCode !== String(code)) {
-      return res.status(400).json({
-        message: 'Código de verificación incorrecto',
-        expected: user.verificationCode,
-        received: code,
+    // Verificar si el usuario ya está verificado
+    if (user.isVerified) {
+      // Si ya está verificado, no necesitamos hacer más, solo enviamos un mensaje
+      return res.status(200).json({
+        success: true,
+        message: 'Usuario ya verificado. Por favor, inicia sesión.',
       });
     }
 
-    // Actualizar el estado de verificación
+    // Si el usuario no está verificado, marcarlo como verificado
     user.isVerified = true;
     await user.save();
 
-    res.status(200).json({ message: 'Correo verificado con éxito' });
+    // Generar un token para iniciar sesión automáticamente
+    const token = jwt.sign(
+      { id: user._id, role: user.role, name: user.name, surname: user.surname, dpt: user.dpt, city: user.city, barrio: user.barrio, phoneNumber: user.phoneNumber },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }  // El token tiene una validez de 1 hora
+    );
+
+    // Devolver el token, el ID y la información del usuario para iniciar sesión automáticamente
+    res.status(200).json({
+      success: true,
+      message: 'Usuario verificado con éxito. Iniciando sesión automáticamente.',
+      token,
+      role: user.role,
+      name: user.name,
+      surname: user.surname,
+      userId: user._id,
+      dpt: user.dpt, 
+      city: user.city, 
+      barrio: user.barrio, 
+      phoneNumber: user.phoneNumber
+    });
+
   } catch (error) {
-    console.error('Error al verificar correo:', error);
-    res.status(500).json({ message: 'Error al verificar correo' });
+    console.error('Error al verificar el usuario:', error);
+    res.status(500).json({ message: 'Error al verificar el usuario' });
   }
 };
 
+// Inicio de Sesión
 exports.login = async (req, res) => {
   const { email, password } = req.body;
 
@@ -104,29 +108,46 @@ exports.login = async (req, res) => {
     // Buscar el usuario por correo electrónico
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(400).json({ message: 'Correo o contraseña incorrectos' });
+      return res.status(404).json({ message: 'El correo electrónico no está registrado.' });
     }
 
     // Verificar la contraseña
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(400).json({ message: 'Correo o contraseña incorrectos' });
+      return res.status(400).json({ message: 'Contraseña incorrecta.' });
     }
 
     // Generar el token, incluyendo el rol y el ID del usuario
     const token = jwt.sign(
-      { userId: user._id, name: user.name, surname: user.surname, role: user.role },  // Incluye el rol y userId
+      { 
+        userId: user._id, 
+        name: user.name, 
+        surname: user.surname, 
+        email: user.email,  // Añadir email al token
+        role: user.role,
+        dpt: user.dpt, 
+        city: user.city, 
+        barrio: user.barrio, 
+        phoneNumber: user.phoneNumber  // Añadir teléfono al token
+      },
       'secretKey', { expiresIn: '1h' }
     );
 
-    // Responder con el token, el rol, el userId y el nombre del usuario
+    // Responder con el token y todos los datos del usuario
     res.json({
       message: 'Inicio de sesión exitoso',
       token,
-      role: user.role,  // Enviar el rol como parte de la respuesta
-      userId: user._id,  // Enviar el userId como parte de la respuesta
-      name: user.name,
-      surname: user.surname,
+      user: {
+        userId: user._id,
+        name: user.name,
+        surname: user.surname,
+        email: user.email,
+        role: user.role,
+        dpt: user.dpt,
+        city: user.city,
+        barrio: user.barrio,
+        phoneNumber: user.phoneNumber,
+      },
     });
   } catch (error) {
     console.error(error);
@@ -135,10 +156,11 @@ exports.login = async (req, res) => {
 };
 
 
+
 // Obtener todos los usuarios
 exports.getUsers = async (req, res) => {
   try {
-    const users = await User.find({}, { password: 0, verificationCode: 0 }); // Excluir campos sensibles
+    const users = await User.find({}, { password: 0}); // Excluir campos sensibles
     res.status(200).json(users);
   } catch (error) {
     console.error('Error al obtener usuarios:', error);
@@ -168,7 +190,7 @@ exports.deleteUser = async (req, res) => {
 // Editar usuario por ID
 exports.editUser = async (req, res) => {
   const { userId } = req.params; // El ID del usuario que se quiere editar
-  const { name, surname, email, password, role, address } = req.body; // Los campos a editar
+  const { name, surname, email, password, role, dpt, city, barrio, phoneNumber } = req.body; // Los campos a editar
 
   try {
     // Buscar el usuario por ID
@@ -178,13 +200,20 @@ exports.editUser = async (req, res) => {
       return res.status(404).json({ message: 'Usuario no encontrado' });
     }
 
+    // Verificar si el campo de email está intentando modificarse y evitarlo
+    if (email && email !== user.email) {
+      return res.status(400).json({ message: 'No se puede modificar el correo electrónico' });
+    }
+
     // Actualizar los campos del usuario
     if (name) user.name = name;
     if (surname) user.surname = surname;
-    if (email) user.email = email;
-    if (password) user.password = await bcrypt.hash(password, 10); // Si se pasa una nueva contraseña, se encripta
     if (role) user.role = role;
-    if (address !== undefined) user.address = address; // Puede ser vacío o una dirección
+    if (dpt !== undefined) user.dpt = dpt; // Departamento
+    if (city !== undefined) user.city = city; // Ciudad
+    if (barrio !== undefined) user.barrio = barrio; // Barrio
+    if (phoneNumber !== undefined) user.phoneNumber = phoneNumber; // Número de teléfono
+    if (password) user.password = await bcrypt.hash(password, 10); // Si se pasa una nueva contraseña, se encripta
 
     await user.save(); // Guardamos los cambios
 
@@ -195,26 +224,31 @@ exports.editUser = async (req, res) => {
   }
 };
 
+
+
 // Obtener un usuario por ID
 exports.getUserById = async (req, res) => {
   const { userId } = req.params; // Obtenemos el ID del usuario desde los parámetros de la URL
 
   try {
-    // Buscar el usuario por ID
+    // Buscar el usuario por ID y seleccionar todos los campos necesarios
     const user = await User.findById(userId).select('-password -verificationCode'); // Excluir los campos sensibles
 
     if (!user) {
       return res.status(404).json({ message: 'Usuario no encontrado' });
     }
 
-    // Devolver los datos del usuario
+    // Devolver los datos del usuario, incluyendo los campos adicionales
     res.status(200).json({
       name: user.name,
       surname: user.surname,
       email: user.email,
-      address: user.address || 'No disponible',
       role: user.role || 'No asignado',
       isVerified: user.isVerified,
+      dpt: user.dpt || 'No disponible',  // Asegúrate de que el campo 'dpt' existe en el modelo
+      city: user.city || 'No disponible',     // Asegúrate de que el campo 'city' existe en el modelo
+      barrio: user.barrio || 'No disponible', // Asegúrate de que el campo 'barrio' existe en el modelo
+      phoneNumber: user.phoneNumber || 'No disponible', // Asegúrate de que el campo 'phoneNumber' existe en el modelo
     });
   } catch (error) {
     console.error('Error al obtener el usuario:', error);
@@ -335,51 +369,20 @@ exports.resetPassword = async (req, res) => {
 };
 
 
+// Función para actualizar la contraseña
+exports.updateUserPassword = async (req, res) => {
+  const { id } = req.params;
+  const { newPassword } = req.body;
 
-// Verificación de usuario con enlace
-exports.verifyUserByLink = async (req, res) => {
-  const { email } = req.body;
+  if (!newPassword) {
+    return res.status(400).json({ message: 'La contraseña es obligatoria.' });
+  }
 
   try {
-    const user = await User.findOne({ email });
-
-    if (!user) {
-      return res.status(404).json({ message: 'Usuario no encontrado' });
-    }
-
-    // Verificar si el usuario ya está verificado
-    if (user.isVerified) {
-      // Si ya está verificado, no necesitamos hacer más, solo enviamos un mensaje
-      return res.status(200).json({
-        success: true,
-        message: 'Usuario ya verificado. Por favor, inicia sesión.',
-      });
-    }
-
-    // Si el usuario no está verificado, marcarlo como verificado
-    user.isVerified = true;
-    await user.save();
-
-    // Generar un token para iniciar sesión automáticamente
-    const token = jwt.sign(
-      { id: user._id, role: user.role, name: user.name, surname: user.surname },
-      process.env.JWT_SECRET,
-      { expiresIn: '1h' }  // El token tiene una validez de 1 hora
-    );
-
-    // Devolver el token, el ID y la información del usuario para iniciar sesión automáticamente
-    res.status(200).json({
-      success: true,
-      message: 'Usuario verificado con éxito. Iniciando sesión automáticamente.',
-      token,
-      role: user.role,
-      name: user.name,
-      surname: user.surname,
-      userId: user._id // Agregar el ID del usuario
-    });
-
+    const hashedPassword = await bcrypt.hash(newPassword, 10); // Encriptar la contraseña
+    await User.findByIdAndUpdate(id, { password: hashedPassword });
+    res.status(200).json({ message: 'Contraseña actualizada correctamente.' });
   } catch (error) {
-    console.error('Error al verificar el usuario:', error);
-    res.status(500).json({ message: 'Error al verificar el usuario' });
+    res.status(500).json({ message: 'Error al actualizar la contraseña.' });
   }
 };
