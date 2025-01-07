@@ -19,6 +19,7 @@ const purchaseSchema = new mongoose.Schema({
   ],
   total: { type: Number, required: true },
   shippingInfo: {
+    address: { type: String, required: true }, // Nueva dirección añadida
     reference: { type: String, required: true }, // Referencia del lugar de entrega
     observations: { type: String }, // Observaciones del lugar de entrega
   },

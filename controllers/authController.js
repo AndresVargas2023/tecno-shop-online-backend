@@ -130,8 +130,11 @@ exports.login = async (req, res) => {
         barrio: user.barrio, 
         phoneNumber: user.phoneNumber  // Añadir teléfono al token
       },
-      'secretKey', { expiresIn: '1h' }
+      process.env.JWT_SECRET, { expiresIn: '1h' }
     );
+
+    // Imprimir el token en la consola del servidor
+    console.log('Token generado:', token);  // Esto imprimirá el token en la consola de VSCode
 
     // Responder con el token y todos los datos del usuario
     res.json({
