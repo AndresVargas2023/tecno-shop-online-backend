@@ -59,10 +59,6 @@ exports.createPurchase = async (req, res) => {
     res.status(500).json({ error: 'Error al crear la compra' });
   }
 };
-
-
-
-
 // Ver compras por cliente
 exports.getPurchasesByCustomer = async (req, res) => {
   try {
@@ -73,7 +69,6 @@ exports.getPurchasesByCustomer = async (req, res) => {
     res.status(500).json({ error: 'Error al obtener las compras' });
   }
 };
-
 // Ver todas las compras
 exports.getAllPurchases = async (req, res) => {
   try {
@@ -83,56 +78,6 @@ exports.getAllPurchases = async (req, res) => {
     res.status(500).json({ error: 'Error al obtener todas las compras' });
   }
 };
-
-// Editar una compra
-exports.updatePurchase = async (req, res) => {
-  try {
-    const { purchaseId } = req.params;
-    const { products, status, deliveryDate, reference, observations } = req.body;
-
-    // Calcular el nuevo total
-    const total = products.reduce((sum, product) => sum + product.quantity * product.price, 0);
-
-    // Buscar la compra para asegurarse de que existe
-    const purchase = await Purchase.findById(purchaseId);
-    if (!purchase) {
-      return res.status(404).json({ error: 'Compra no encontrada' });
-    }
-
-    // Actualizar el historial de cambios
-    const historyUpdate = {
-      action: 'Compra actualizada',
-      date: new Date(),
-      changes: {
-        status: status || purchase.status,
-        deliveryDate: deliveryDate || purchase.deliveryDate,
-        reference: reference || purchase.reference,
-        observations: observations || purchase.observations
-      }
-    };
-
-    // Actualizar la compra
-    const updatedPurchase = await Purchase.findByIdAndUpdate(
-      purchaseId,
-      {
-        products,
-        total,
-        status,
-        deliveryDate,
-        reference,
-        observations,
-        $push: { history: historyUpdate },  // Agregar al historial
-      },
-      { new: true }
-    );
-
-    res.status(200).json({ message: 'Compra actualizada con éxito', purchase: updatedPurchase });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Error al actualizar la compra' });
-  }
-};
-
 // Eliminar una compra
 exports.deletePurchase = async (req, res) => {
   try {
@@ -150,7 +95,6 @@ exports.deletePurchase = async (req, res) => {
     res.status(500).json({ error: 'Error al eliminar la compra' });
   }
 };
-
 exports.getPurchaseDetails = async (req, res) => {
   const { purchaseId } = req.params;
 
@@ -241,5 +185,74 @@ exports.editPurchase = async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error al actualizar la compra' });
+  }
+};
+
+exports.updatePurchaseStatus = async (req, res) => {
+  try {
+    const { purchaseId } = req.params;
+    const { status, estimatedDeliveryDate } = req.body;
+
+    // Actualizar el estado y la fecha estimada de entrega de la compra
+    const updatedPurchase = await Purchase.findByIdAndUpdate(
+      purchaseId,
+      { status, estimatedDeliveryDate },
+      { new: true } // Devuelve el documento actualizado
+    ).populate('products.productId', 'name price');
+
+    if (!updatedPurchase) {
+      return res.status(404).json({ error: 'Compra no encontrada' });
+    }
+
+    res.status(200).json(updatedPurchase);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al actualizar el estado de la compra' });
+  }
+};
+
+
+// Obtener resumen de ventas
+exports.getSalesSummary = async (req, res) => {
+  try {
+    const salesSummary = await Purchase.aggregate([
+      { $unwind: '$products' },
+      {
+        $group: {
+          _id: null,
+          totalProductsSold: { $sum: '$products.quantity' },
+          totalRevenue: { $sum: { $multiply: ['$products.price', '$products.quantity'] } },
+          productsSold: {
+            $push: {
+              productId: '$products.productId',
+              quantity: '$products.quantity',
+              price: '$products.price',
+              total: { $multiply: ['$products.price', '$products.quantity'] },
+            },
+          },
+          ordersByStatus: {
+            $push: {
+              status: '$status',
+              createdAt: '$createdAt',
+            },
+          },
+        },
+      },
+      {
+        $project: {
+          totalProductsSold: 1,
+          totalRevenue: 1,
+          productsSold: 1,
+          ordersByStatus: 1,
+        },
+      },
+    ]);
+
+    // Responder con el resultado o valores predeterminados
+    res.json(salesSummary[0] || { totalProductsSold: 0, totalRevenue: 0, productsSold: [], ordersByStatus: [] });
+  } catch (err) {
+    // Manejar errores
+    console.error(err);
+    res.status(500).json({ message: 'Error al obtener el resumen de ventas' });
   }
 };
