@@ -8,7 +8,7 @@ const auth = require('../middleware/auth'); // Asegúrate de importar el middlew
 router.post('/', purchaseController.createPurchase);
 
 // Ver compras por cliente
-router.get('/:customerId', purchaseController.getPurchasesByCustomer);
+router.get('/client/:customerId', purchaseController.getPurchasesByCustomer);
 
 // Ver todas las compras
 router.get('/', purchaseController.getAllPurchases);

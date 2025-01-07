@@ -1,6 +1,8 @@
 // controllers/purchaseController.js
 const Purchase = require('../models/Purchase');
 const Product = require('../models/productModel');  // Asegúrate de importar el modelo de Producto
+const User = require('../models/User');  // Asegúrate de importar el modelo de Producto
+
 const mongoose = require('mongoose'); // Importa mongoose
 
 
@@ -72,9 +74,14 @@ exports.getPurchasesByCustomer = async (req, res) => {
 // Ver todas las compras
 exports.getAllPurchases = async (req, res) => {
   try {
-    const purchases = await Purchase.find().populate('products.productId', 'name price');
-    res.status(200).json(purchases);
+    const purchases = await Purchase.find()
+      .populate('products.productId', 'name price')  // Esto sigue poblando los productos
+      .populate('customerId', 'name surname')  // Aquí se hace el populate para obtener nombre y apellido del usuario
+      .exec();  // Ejecuta la consulta para obtener todas las compras
+
+    res.status(200).json(purchases);  // Devuelve las compras con los datos del cliente y productos
   } catch (error) {
+    console.error(error);  // Para más detalles sobre el error
     res.status(500).json({ error: 'Error al obtener todas las compras' });
   }
 };
@@ -212,22 +219,48 @@ exports.updatePurchaseStatus = async (req, res) => {
 };
 
 
-// Obtener resumen de ventas
+/// Obtener resumen de ventas
 exports.getSalesSummary = async (req, res) => {
   try {
     const salesSummary = await Purchase.aggregate([
       { $unwind: '$products' },
       {
+        $lookup: {
+          from: 'products',  // Nombre de la colección de productos
+          localField: 'products.productId',  // Campo que contiene el ID del producto en la venta
+          foreignField: '_id',  // Campo en el modelo de productos que corresponde al ID
+          as: 'productDetails',  // Nuevo campo donde agregaremos los detalles del producto
+        },
+      },
+      { $unwind: '$productDetails' },  // Desglosamos el array productDetails para acceder a los campos directamente
+      {
         $group: {
-          _id: null,
-          totalProductsSold: { $sum: '$products.quantity' },
-          totalRevenue: { $sum: { $multiply: ['$products.price', '$products.quantity'] } },
+          _id: {
+            year: { $year: '$createdAt' },
+            month: { $month: '$createdAt' },
+          },
+          totalProductsSold: { $sum: { $toInt: '$products.quantity' } },
+          totalRevenue: {
+            $sum: {
+              $multiply: [
+                { $toInt: '$products.price' },
+                { $toInt: '$products.quantity' },
+              ],
+            },
+          },
           productsSold: {
             $push: {
               productId: '$products.productId',
-              quantity: '$products.quantity',
-              price: '$products.price',
-              total: { $multiply: ['$products.price', '$products.quantity'] },
+              quantity: { $toInt: '$products.quantity' },
+              price: { $toInt: '$products.price' },
+              total: {
+                $multiply: [
+                  { $toInt: '$products.price' },
+                  { $toInt: '$products.quantity' },
+                ],
+              },
+              name: '$productDetails.name',  // Incluir el nombre del producto
+              image: '$productDetails.image',  // Incluir la imagen del producto
             },
           },
           ordersByStatus: {
@@ -240,19 +273,36 @@ exports.getSalesSummary = async (req, res) => {
       },
       {
         $project: {
+          yearMonth: { $concat: [{ $toString: '$_id.year' }, '-', { $toString: '$_id.month' }] },
           totalProductsSold: 1,
           totalRevenue: 1,
           productsSold: 1,
           ordersByStatus: 1,
         },
       },
+      { $sort: { '_id.year': 1, '_id.month': 1 } }, // Para ordenar las ventas por año y mes
     ]);
 
-    // Responder con el resultado o valores predeterminados
-    res.json(salesSummary[0] || { totalProductsSold: 0, totalRevenue: 0, productsSold: [], ordersByStatus: [] });
+    // Agregar la parte que agrupa las cantidades por producto
+    salesSummary.forEach((summary) => {
+      const groupedProducts = {};
+
+      // Agrupar por productId
+      summary.productsSold.forEach((product) => {
+        if (groupedProducts[product.productId]) {
+          groupedProducts[product.productId].quantity += product.quantity;
+        } else {
+          groupedProducts[product.productId] = { ...product };
+        }
+      });
+
+      // Volver a convertir el objeto a un array
+      summary.productsSold = Object.values(groupedProducts);
+    });
+
+    res.json(salesSummary);
   } catch (err) {
-    // Manejar errores
-    console.error(err);
+    console.error('Error al obtener el resumen de ventas:', err);
     res.status(500).json({ message: 'Error al obtener el resumen de ventas' });
   }
 };
