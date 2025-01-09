@@ -76,7 +76,7 @@ exports.verifyUserByLink = async (req, res) => {
     const token = jwt.sign(
       { id: user._id, role: user.role, name: user.name, surname: user.surname, dpt: user.dpt, city: user.city, barrio: user.barrio, phoneNumber: user.phoneNumber },
       process.env.JWT_SECRET,
-      { expiresIn: '1h' }  // El token tiene una validez de 1 hora
+  // El token tiene una validez de 1 hora
     );
 
     // Devolver el token, el ID y la información del usuario para iniciar sesión automáticamente
@@ -130,7 +130,7 @@ exports.login = async (req, res) => {
         barrio: user.barrio, 
         phoneNumber: user.phoneNumber  // Añadir teléfono al token
       },
-      process.env.JWT_SECRET, { expiresIn: '1h' }
+      process.env.JWT_SECRET,
     );
 
     // Imprimir el token en la consola del servidor
@@ -271,7 +271,7 @@ exports.requestPasswordReset = async (req, res) => {
     }
 
     // Generar el token de restablecimiento de contraseña
-    const resetToken = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    const resetToken = jwt.sign({ userId: user._id }, process.env.JWT_SECRET);
 
     // Guardar el token y la fecha de expiración en el modelo User
     user.resetPasswordToken = resetToken;
@@ -353,7 +353,7 @@ exports.resetPassword = async (req, res) => {
     const newToken = jwt.sign(
       { id: user._id, role: user.role, name: user.name, surname: user.surname },
       process.env.JWT_SECRET,
-      { expiresIn: '1h' } // El token tiene una validez de 1 hora
+     // El token tiene una validez de 1 hora
     );
 
     // Responder con el nuevo token y un mensaje de éxito
