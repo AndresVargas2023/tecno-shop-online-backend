@@ -2,6 +2,9 @@ const nodemailer = require('nodemailer');
 
 const sendVerificationEmail = async (email, codeOrToken, name, surname, isPasswordReset = false) => {
   // Configuración del transporte de correo
+  const validatedName = name || '';  
+  const validatedSurname = surname || '';  
+
   const transporter = nodemailer.createTransport({
     service: 'gmail', // Se puede usar otro servicio como SendGrid, Mailgun, etc.
     auth: {
@@ -20,12 +23,12 @@ const sendVerificationEmail = async (email, codeOrToken, name, surname, isPasswo
     ? `${process.env.FRONTEND_URL}/reset-password/${codeOrToken}`
     : `${process.env.FRONTEND_URL}/verify/${encodeURIComponent(email)}`;
 
-  const actionText = isPasswordReset ? 'restablecer tu contraseña' : 'verificar tu cuenta';
+  const actionText = isPasswordReset ? 'Restablecer tu contraseña' : 'Verificar tu cuenta';
 
   // Crear el texto del correo para clientes que no soportan HTML
   const text = isPasswordReset 
-    ? `Hola ${name} ${surname},\n\nHaz clic en el siguiente enlace para restablecer tu contraseña: ${link}.`
-    : `Hola ${name} ${surname},\n\nHaz clic en el siguiente enlace para verificar tu cuenta: ${link}.`;
+    ? `Hola ${validatedName} ${validatedSurname},\n\nHaz clic en el siguiente enlace para restablecer tu contraseña: ${link}.`
+    : `Hola ${validatedName} ${validatedSurname},\n\nHaz clic en el siguiente enlace para verificar tu cuenta: ${link}.`;
 
   // Crear el HTML del correo con un diseño mejorado
   const html = `
