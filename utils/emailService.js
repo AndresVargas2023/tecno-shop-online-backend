@@ -1,6 +1,8 @@
 const nodemailer = require('nodemailer');
 
 const sendVerificationEmail = async (email, codeOrToken, name, surname, isPasswordReset = false) => {
+
+
   // Configuración del transporte de correo
   const validatedName = name || '';  
   const validatedSurname = surname || '';  
@@ -39,7 +41,7 @@ const sendVerificationEmail = async (email, codeOrToken, name, surname, isPasswo
         </div>
         <div style="background-color: #ffffff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); margin-top: 20px;">
           <h2 style="color: #333; text-align: center;">¡Bienvenido a TecnoShop Online!</h2>
-          <p style="font-size: 16px; color: #333; text-align: center;">Hola ${name} ${surname},</p>
+          <p style="font-size: 16px; color: #333; text-align: center;">Hola ${validatedName} ${validatedSurname},</p>
           <p style="font-size: 16px; color: #333; text-align: center;">${isPasswordReset ? 'Haz clic en el siguiente enlace para restablecer tu contraseña:' : 'Haz clic en el siguiente enlace para verificar tu cuenta:'}</p>
           <p style="text-align: center; margin: 20px 0;">
             <a href="${link}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">${actionText}</a>

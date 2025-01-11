@@ -17,7 +17,7 @@ exports.createPurchase = async (req, res) => {
       referenceNumber 
     } = req.body;
 
-    // Buscar los productos en la base de datos para obtener sus precios
+    // Buscar los productos en la base de datos para obtener sus precios y nombres
     const productIds = products.map(product => product.productId);
     const existingProducts = await Product.find({ '_id': { $in: productIds } });
 
@@ -26,29 +26,43 @@ exports.createPurchase = async (req, res) => {
       return res.status(400).json({ error: 'Algunos productos no existen en la base de datos' });
     }
 
-    // Calcular el total de la compra usando los precios de los productos existentes
-    const total = products.reduce((sum, product) => {
+    // Crear la lista de productos con los datos adicionales (nombre y precio)
+    const updatedProducts = products.map(product => {
       const productData = existingProducts.find(p => p._id.toString() === product.productId.toString());
       if (productData) {
-        return sum + product.quantity * productData.price;  // Usar el precio real del producto
+        return {
+          productId: productData._id,
+          productName: productData.name, // Nombre del producto desde la base de datos
+          productPrice: productData.price, // Precio del producto desde la base de datos
+          quantity: product.quantity,
+          totalPrice: product.quantity * productData.price // Precio total del producto
+        };
       }
-      return sum; // Si no se encuentra el producto, no se suma nada
-    }, 0);
+      return null; // Si no se encuentra el producto, devolver null
+    });
+
+    // Verificar que no hay productos nulos en la lista
+    if (updatedProducts.includes(null)) {
+      return res.status(400).json({ error: 'Error al procesar algunos productos' });
+    }
+
+    // Calcular el total de la compra
+    const total = updatedProducts.reduce((sum, product) => sum + product.totalPrice, 0);
 
     // Crear una nueva compra
     const newPurchase = new Purchase({
       customerId,
-      products,
+      products: updatedProducts, // Lista de productos actualizada con nombre y precio
       total,
-      status: status || 'pendiente',  // Por defecto la compra está pendiente
+      status: status || 'pendiente', // Por defecto la compra está pendiente
       deliveryDate,
-      referenceNumber: referenceNumber || `REF-${Date.now()}`,  // Asignar referencia por defecto
+      referenceNumber: referenceNumber || `REF-${Date.now()}`, // Asignar referencia por defecto
       shippingInfo: {
-        address: shippingInfo?.address || 'Dirección no especificada', // Añadir la dirección con un valor por defecto
-        reference: shippingInfo?.reference || `Referencia no especificada`, // Usar shippingInfo.reference
+        address: shippingInfo?.address || 'Dirección no especificada', // Dirección con valor por defecto
+        reference: shippingInfo?.reference || 'Referencia no especificada', // Referencia con valor por defecto
         observations: shippingInfo?.observations || '', // Observaciones opcionales
       },
-      history: [{ action: 'Compra realizada', date: new Date(), status: 'pendiente' }]  // Añadir 'status' al historial
+      history: [{ action: 'Compra realizada', date: new Date(), status: 'pendiente' }] // Historial inicial
     });
 
     // Guardar la compra en la base de datos
@@ -61,30 +75,35 @@ exports.createPurchase = async (req, res) => {
     res.status(500).json({ error: 'Error al crear la compra' });
   }
 };
+
 // Ver compras por cliente
 exports.getPurchasesByCustomer = async (req, res) => {
   try {
     const { customerId } = req.params;
-    const purchases = await Purchase.find({ customerId }).populate('products.productId', 'name price');
+
+    // Encuentra las compras del cliente sin necesidad de 'populate'
+    const purchases = await Purchase.find({ customerId });
+
     res.status(200).json(purchases);
   } catch (error) {
     res.status(500).json({ error: 'Error al obtener las compras' });
   }
 };
+
 // Ver todas las compras
 exports.getAllPurchases = async (req, res) => {
   try {
     const purchases = await Purchase.find()
-      .populate('products.productId', 'name price')  // Esto sigue poblando los productos
-      .populate('customerId', 'name surname')  // Aquí se hace el populate para obtener nombre y apellido del usuario
-      .exec();  // Ejecuta la consulta para obtener todas las compras
+      .populate('customerId', 'name surname') // Sigue poblando para obtener nombre y apellido del cliente
+      .exec(); // Ejecuta la consulta
 
-    res.status(200).json(purchases);  // Devuelve las compras con los datos del cliente y productos
+    res.status(200).json(purchases); // Devuelve las compras
   } catch (error) {
-    console.error(error);  // Para más detalles sobre el error
+    console.error(error); // Detalle del error para depuración
     res.status(500).json({ error: 'Error al obtener todas las compras' });
   }
 };
+
 // Eliminar una compra
 exports.deletePurchase = async (req, res) => {
   try {
@@ -102,6 +121,8 @@ exports.deletePurchase = async (req, res) => {
     res.status(500).json({ error: 'Error al eliminar la compra' });
   }
 };
+
+// Ver la compras en detalles a su ID
 exports.getPurchaseDetails = async (req, res) => {
   const { purchaseId } = req.params;
 
@@ -111,9 +132,8 @@ exports.getPurchaseDetails = async (req, res) => {
   }
 
   try {
-    // Buscar la compra por el ID y poblar los productos con su información completa
-    const purchase = await Purchase.findById(purchaseId)
-      .populate('products.productId'); // Poblamos la referencia 'productId' en 'products'
+    // Buscar la compra por el ID sin utilizar populate
+    const purchase = await Purchase.findById(purchaseId);
 
     // Si no se encuentra la compra
     if (!purchase) {
@@ -128,12 +148,16 @@ exports.getPurchaseDetails = async (req, res) => {
   }
 };
 
+
 exports.editPurchase = async (req, res) => {
   const { purchaseId } = req.params;
   const { userId } = req.user;  // Aquí accedemos correctamente al userId desde req.user
   console.log("ID de la compra recibido en el backend:", purchaseId);
+  console.log("Usuario autenticado:", req.user);
 
   const { products, status, estimatedDeliveryDate, shippingInfo, referenceNumber } = req.body;
+
+  console.log("Datos recibidos en el cuerpo de la solicitud:", req.body);
 
   try {
     const purchase = await Purchase.findById(purchaseId);
@@ -146,9 +170,12 @@ exports.editPurchase = async (req, res) => {
       return res.status(403).json({ error: 'No tienes permiso para editar esta compra' });
     }
 
-    // Actualizar productos si se proporcionaron
+    // Validar productos
     if (products) {
+      console.log("Productos recibidos:", products);
       const productIds = products.map(product => product.productId);
+      console.log("Ids de productos:", productIds);
+
       const existingProducts = await Product.find({ '_id': { $in: productIds } });
 
       if (existingProducts.length !== productIds.length) {
@@ -157,8 +184,10 @@ exports.editPurchase = async (req, res) => {
 
       const total = products.reduce((sum, product) => {
         const productData = existingProducts.find(p => p._id.toString() === product.productId.toString());
+        console.log("Producto encontrado:", productData);
         return productData ? sum + product.quantity * productData.price : sum;
       }, 0);
+      console.log("Total calculado:", total);
 
       purchase.products = products.map(product => ({
         ...product,
@@ -190,10 +219,11 @@ exports.editPurchase = async (req, res) => {
 
     res.status(200).json({ message: 'Compra actualizada con éxito', purchase });
   } catch (error) {
-    console.error(error);
+    console.error("Error al actualizar la compra:", error);
     res.status(500).json({ error: 'Error al actualizar la compra' });
   }
 };
+
 
 exports.updatePurchaseStatus = async (req, res) => {
   try {
@@ -205,7 +235,7 @@ exports.updatePurchaseStatus = async (req, res) => {
       purchaseId,
       { status, estimatedDeliveryDate },
       { new: true } // Devuelve el documento actualizado
-    ).populate('products.productId', 'name price');
+    )
 
     if (!updatedPurchase) {
       return res.status(404).json({ error: 'Compra no encontrada' });

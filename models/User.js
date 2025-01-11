@@ -52,10 +52,10 @@ const userSchema = new mongoose.Schema({
   },
   phoneNumber: {
     type: String,
-    required: true,
+    required: [true, 'El número de teléfono es obligatorio.'],
     validate: {
-      validator: (value) => /\d{10}/.test(value), // Asegura que el teléfono tenga 10 dígitos (puedes modificar esto según el formato que desees)
-      message: 'El número de teléfono debe tener 10 dígitos',
+      validator: (value) => /^\d{10}$/.test(value),
+      message: 'El número de teléfono debe tener 10 dígitos.',
     },
   },
   resetPasswordToken: {

@@ -7,6 +7,9 @@ const crypto = require('crypto');
 // Registro de usuario con código de verificación
 exports.register = async (req, res) => {
   try {
+    // Log para inspeccionar los datos enviados desde el frontend
+    console.log('Datos recibidos en el registro:', req.body);
+
     const { name, surname, email, password, dpt, city, barrio, phoneNumber } = req.body;
 
     // Crear y guardar el usuario
@@ -24,7 +27,7 @@ exports.register = async (req, res) => {
     await newUser.save();
 
     // Enviar el correo de verificación
-    await sendVerificationEmail(email, name, surname);
+    await sendVerificationEmail(email, 'sin datos', name, surname, false);
 
     res.status(201).json({ message: 'Usuario registrado. Por favor verifica tu correo.' });
   } catch (error) {
@@ -45,8 +48,6 @@ exports.register = async (req, res) => {
     res.status(500).json({ error: 'Error al registrar usuario.' });
   }
 };
-
-
 
 // Verificación de usuario con enlace
 exports.verifyUserByLink = async (req, res) => {
